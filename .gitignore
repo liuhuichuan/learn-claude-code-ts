@@ -35,3 +35,12 @@ Thumbs.db
 
 # Reasonix desktop runtime state
 .reasonix/
+
+# Teaching workspace (teach skill) — personal learning records
+MISSION.md
+NOTES.md
+RESOURCES.md
+lessons/
+reference/
+assets/
+learning-records/

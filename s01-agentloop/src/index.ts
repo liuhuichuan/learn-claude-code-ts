@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { spawnSync } from "node:child_process";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import { readFileSync} from "node:fs"
 
 const client = new Anthropic({
   baseURL: process.env.ANTHROPIC_BASE_URL, // 可选
@@ -19,6 +20,15 @@ const TOOLS: Anthropic.Messages.Tool[] = [{
     properties: { command: { type: "string" } },
     required: ["command"],
   },
+},
+{
+  name: "read_file",
+  description: "Read a file content by path",
+  input_schema: {
+    type: "object",
+    properties: {path: {type: "string"}},
+    required: ["path"],
+  },
 }];
 
 function runBash(command: string): string {
@@ -30,6 +40,14 @@ function runBash(command: string): string {
   if (r.error) return `Error: ${r.error.message}`;   // 超时/启动失败
   const out = `${r.stdout ?? ""}${r.stderr ?? ""}`.trim();
   return out ? out.slice(0, 50_000) : "(no output)";
+}
+
+function runReadFile(path: string): string {
+  try {
+    return readFileSync(path, "utf-8").slice(0, 50_000);
+  } catch (e) {
+    return `Error: ${(e as Error).message}`;
+  }
 }
 
 async function agentLoop(messages: Anthropic.Messages.MessageParam[]) {
@@ -47,9 +65,20 @@ async function agentLoop(messages: Anthropic.Messages.MessageParam[]) {
     if (toolCalls.length === 0) return;
 
     const results = toolCalls.map((block) => {
-      const cmd = (block.input as { command?: string }).command ?? ""; // 类型断言
-      console.log(`\x1b[33m$ ${cmd}\x1b[0m`);
-      const output = runBash(cmd);
+      //const cmd = (block.input as { command?: string }).command ?? ""; // 类型断言
+      //console.log(`\x1b[33m$ ${cmd}\x1b[0m`);
+      //const output = runBash(cmd);
+      const input = block.input as {command?: string; path?: string};
+      console.log(`\x1b[33m$ [${block.name}] ${input.command?? input.path ?? ""} \x1b[0m`);
+
+      let output: string;
+      if (block.name === "bash") {
+        output = runBash(input.command?? "");
+      } else if (block.name === "read_file") {
+        output = runReadFile(input.path ?? "");
+      } else {
+        output = `Error: unknown tool ${block.name}`;
+      }
       console.log(output.slice(0, 200));
       return {
         type: "tool_result" as const,
